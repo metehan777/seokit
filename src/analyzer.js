@@ -436,15 +436,16 @@ SEOAnalyzer.prototype._chunks = function _chunks(pageContent, its, globalKeyword
     // Sentiment
     var sentiment = doc.out(its.sentiment);
 
-    // Sentence importance
+    // Sentence importance via wink-nlp's POS 4-gram content salience algorithm
     var importance = [];
     try {
       importance = doc.out(its.sentenceWiseImportance) || [];
     } catch (e) {}
 
-    var topImportance = importance.slice().sort(function (a, b) {
-      return (b.importance || 0) - (a.importance || 0);
-    }).slice(0, 3);
+    var topImportance = importance
+      .filter(function (imp) { return imp.importance > 0; })
+      .sort(function (a, b) { return (b.importance || 0) - (a.importance || 0); })
+      .slice(0, 3);
 
     // Information density: entities per 100 words
     var entityDensity = words.length > 0 ? Math.round((entities.length / words.length) * 10000) / 100 : 0;
@@ -481,7 +482,11 @@ SEOAnalyzer.prototype._chunks = function _chunks(pageContent, its, globalKeyword
       snippetGrade: snippetGrade(snippetScore),
       keyStatements: topImportance.map(function (imp) {
         try {
-          return sentences.itemAt(imp.index).out().substring(0, 150);
+          var raw = sentences.itemAt(imp.index).out().trim();
+          if (raw.length <= 160) return raw;
+          var cut = raw.substring(0, 160);
+          var lastSpace = cut.lastIndexOf(' ');
+          return (lastSpace > 80 ? cut.substring(0, lastSpace) : cut) + '...';
         } catch (e) { return ''; }
       }).filter(Boolean)
     });

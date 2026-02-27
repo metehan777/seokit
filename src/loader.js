@@ -193,94 +193,78 @@
   }
 
   function extractSections() {
-    var main = document.querySelector('main, article, [role="main"]') || document.body;
-    var clone = main.cloneNode(true);
-    var removeTags = ['script', 'style', 'noscript', 'iframe', 'svg', 'nav', 'footer'];
+    var root = document.querySelector('main, article, [role="main"]') || document.body;
+    var clone = root.cloneNode(true);
+    var removeTags = ['script', 'style', 'noscript', 'iframe', 'svg', 'nav', 'footer', 'code', 'pre', 'samp', 'kbd'];
     for (var r = 0; r < removeTags.length; r++) {
       var rEls = clone.querySelectorAll(removeTags[r]);
       for (var rx = rEls.length - 1; rx >= 0; rx--) rEls[rx].parentNode.removeChild(rEls[rx]);
     }
 
+    var nodes = linearize(clone);
     var sections = [];
-    var headingSelector = 'h1, h2, h3, h4, h5, h6';
-    var allHeadings = clone.querySelectorAll(headingSelector);
+    var currentHeading = '(Introduction)';
+    var currentLevel = 0;
+    var buffer = [];
 
-    if (allHeadings.length === 0) {
-      var fullText = (clone.textContent || '').replace(/\s+/g, ' ').trim();
-      if (fullText.length > 30) {
-        sections.push({ heading: '', level: 0, text: fullText, wordCount: fullText.split(/\s+/).length });
-      }
-      return sections;
-    }
-
-    // Collect intro text before first heading
-    var introText = collectTextBefore(clone, allHeadings[0]);
-    if (introText.length > 30) {
-      sections.push({ heading: '(Introduction)', level: 0, text: introText, wordCount: introText.split(/\s+/).length });
-    }
-
-    for (var h = 0; h < allHeadings.length; h++) {
-      var hEl = allHeadings[h];
-      var level = parseInt(hEl.tagName.charAt(1), 10);
-      var headingText = hEl.textContent.trim();
-      var nextH = h + 1 < allHeadings.length ? allHeadings[h + 1] : null;
-      var sectionText = collectTextBetween(hEl, nextH);
-
-      if (sectionText.length > 15) {
-        sections.push({
-          heading: headingText,
-          level: level,
-          text: sectionText,
-          wordCount: sectionText.split(/\s+/).length
-        });
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.type === 'heading') {
+        flushSection(sections, currentHeading, currentLevel, buffer);
+        currentHeading = n.text;
+        currentLevel = n.level;
+        buffer = [];
+      } else {
+        buffer.push(n.text);
       }
     }
+    flushSection(sections, currentHeading, currentLevel, buffer);
 
     return sections;
   }
 
-  function collectTextBefore(container, stopNode) {
-    var text = '';
-    var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+  function linearize(container) {
+    var result = [];
+    var walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, null, false);
     var node;
     while ((node = walker.nextNode())) {
-      if (stopNode && stopNode.contains(node)) break;
-      if (isBeforeInDOM(node, stopNode)) {
-        var parent = node.parentNode;
-        if (parent && !/^(SCRIPT|STYLE)$/i.test(parent.tagName)) {
-          text += node.textContent;
+      if (node.nodeType === 1 && /^H[1-6]$/i.test(node.tagName)) {
+        result.push({
+          type: 'heading',
+          level: parseInt(node.tagName.charAt(1), 10),
+          text: node.textContent.trim()
+        });
+        skipChildren(walker, node);
+      } else if (node.nodeType === 3) {
+        var t = node.textContent;
+        if (t && /\S/.test(t)) {
+          result.push({ type: 'text', text: t });
         }
       }
     }
-    return text.replace(/\s+/g, ' ').trim();
+    return result;
   }
 
-  function collectTextBetween(startHeading, endHeading) {
-    var text = '';
-    var node = startHeading.nextSibling;
-    while (node) {
-      if (endHeading && node === endHeading) break;
-      if (endHeading && node.contains && node.contains(endHeading)) break;
-      if (/^H[1-6]$/i.test(node.nodeName)) break;
-      if (node.nodeType === 3) {
-        text += node.textContent;
-      } else if (node.nodeType === 1) {
-        var firstChildHeading = node.querySelector('h1,h2,h3,h4,h5,h6');
-        if (firstChildHeading) {
-          var pre = collectTextBefore(node, firstChildHeading);
-          text += pre;
-          break;
-        }
-        text += node.textContent;
-      }
-      node = node.nextSibling;
+  function skipChildren(walker, parent) {
+    var next = walker.nextNode();
+    while (next && parent.contains(next)) {
+      next = walker.nextNode();
     }
-    return text.replace(/\s+/g, ' ').trim();
+    if (next && !parent.contains(next)) {
+      walker.previousNode();
+    }
   }
 
-  function isBeforeInDOM(a, b) {
-    if (!b) return true;
-    return !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  function flushSection(sections, heading, level, buffer) {
+    var text = buffer.join(' ').replace(/\s+/g, ' ').trim();
+    if (text.length > 30) {
+      sections.push({
+        heading: heading,
+        level: level,
+        text: text,
+        wordCount: text.split(/\s+/).filter(Boolean).length
+      });
+    }
   }
 
   // --- Scheduling ---
