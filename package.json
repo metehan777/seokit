@@ -1,0 +1,25 @@
+{
+  "name": "seokit",
+  "version": "1.0.0",
+  "description": "Drop-in SEO & content intelligence toolkit. One script tag, 100% client-side, powered by wink-nlp.",
+  "main": "dist/seokit-loader.min.js",
+  "files": ["dist/seokit-loader.min.js", "dist/seokit-worker.min.js", "dist/seokit-engine.min.js", "dist/seokit.min.js"],
+  "scripts": {
+    "build": "webpack --mode production",
+    "build:dev": "webpack --mode development",
+    "demo": "npm run build:dev && npx http-server . -p 3333 -c-1 -o /demo/index.html"
+  },
+  "keywords": ["seo", "nlp", "content-analysis", "readability", "keywords", "browser"],
+  "author": "Metehan",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "wink-eng-lite-web-model": "^1.8.1",
+    "wink-nlp": "^2.4.0"
+  },
+  "devDependencies": {
+    "terser-webpack-plugin": "^5.3.16",
+    "webpack": "^5.105.3",
+    "webpack-cli": "^6.0.1"
+  }
+}
